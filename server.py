@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify
-from scrapling.defaults import Fetcher
+from scrapling import Fetcher
+import json
+import re
 
 app = Flask(__name__)
 fetcher = Fetcher(auto_match=True)
@@ -18,7 +20,6 @@ def scrape_zabihah():
     for item in page.css("script"):
         text = item.text or ""
         if "initialRestaurants" in text:
-            import json, re
             match = re.search(r'"initialRestaurants":(\[.*?\])', text, re.DOTALL)
             if match:
                 restaurants = json.loads(match.group(1))
