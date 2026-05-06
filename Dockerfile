@@ -3,4 +3,4 @@ WORKDIR /app
 COPY server.py .
 RUN pip install flask gunicorn "scrapling[all]"
 EXPOSE 10000
-CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:10000"]
+CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:10000", "--timeout", "120"]
