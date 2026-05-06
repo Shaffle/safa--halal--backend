@@ -1,10 +1,9 @@
 from flask import Flask, request, jsonify
-from scrapling import Fetcher
+import requests
 import json
 import re
 
 app = Flask(__name__)
-fetcher = Fetcher(auto_match=True)
 
 @app.route("/api/zabihah", methods=["POST"])
 def scrape_zabihah():
@@ -14,16 +13,18 @@ def scrape_zabihah():
         return jsonify({"error": "latitude and longitude required"}), 400
 
     url = f"https://www.zabihah.com/search?lat={lat}&lng={lng}"
-    page = fetcher.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+    }
 
+    resp = requests.get(url, headers=headers)
     restaurants = []
-    for item in page.css("script"):
-        text = item.text or ""
-        if "initialRestaurants" in text:
-            match = re.search(r'"initialRestaurants":(\[.*?\])', text, re.DOTALL)
-            if match:
-                restaurants = json.loads(match.group(1))
-            break
+    match = re.search(r'"initialRestaurants":(\[.*?\])', resp.text, re.DOTALL)
+    if match:
+        try:
+            restaurants = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
 
     return jsonify({"restaurants": restaurants})
 
