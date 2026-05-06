@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from scrapling import Fetcher, StealthFetcher
+from scrapling import Fetcher, StealthyFetcher
 import json
 import re
 
