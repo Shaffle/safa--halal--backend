@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Scrapling fetchers with auto_match for resilient element matching
 # even when site structure changes
 fetcher = Fetcher(auto_match=True)
-stealth = StealthFetcher(auto_match=True)
+stealth = StealthyFetcher(auto_match=True)
 
 
 # ──────────────────────────────────────────────
@@ -131,7 +131,7 @@ def parse_zabihah_html(page):
 
 
 # ──────────────────────────────────────────────
-# YELP SCRAPING (StealthFetcher for anti-bot)
+# YELP SCRAPING (StealthyFetcher for anti-bot)
 # ──────────────────────────────────────────────
 
 def scrape_yelp(lat, lng):
@@ -141,7 +141,7 @@ def scrape_yelp(lat, lng):
 
         for query in ["halal+restaurant", "halal+food", "mediterranean+restaurant"]:
             url = f"https://www.yelp.com/search?find_desc={query}&latitude={lat}&longitude={lng}"
-            # Use StealthFetcher to bypass Yelp's bot detection
+            # Use StealthyFetcher to bypass Yelp's bot detection
             page = stealth.get(url)
 
             # Strategy 1: Extract from embedded JSON (most reliable)
@@ -355,7 +355,7 @@ def scrape_menu(name, address, lat, lng):
 
 
 def scrape_yelp_menu(name, address, lat, lng):
-    """Scrape menu from Yelp using StealthFetcher"""
+    """Scrape menu from Yelp using StealthyFetcher"""
     try:
         query = f"{name}".replace(" ", "+")
         url = f"https://www.yelp.com/search?find_desc={query}&latitude={lat}&longitude={lng}"
