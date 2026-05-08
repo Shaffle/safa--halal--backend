@@ -213,7 +213,15 @@ def scrape_yelp(lat, lng):
         results = []
         seen = set()
 
-        for query in ["halal+restaurant", "halal+food", "mediterranean+restaurant"]:
+        for query in [
+            "halal+restaurant", "halal+food", "halal+grocery", "halal+meat",
+            "halal+cafe", "halal+bakery", "halal+coffee",
+            "mediterranean+restaurant", "middle+eastern+restaurant",
+            "pakistani+restaurant", "afghan+restaurant", "turkish+restaurant",
+            "lebanese+restaurant", "moroccan+restaurant", "persian+restaurant",
+            "shawarma", "kebab", "falafel", "biryani",
+            "indian+restaurant", "somali+restaurant", "yemeni+restaurant"
+        ]:
             url = f"https://www.yelp.com/search?find_desc={query}&latitude={lat}&longitude={lng}"
             page = smart_get(url, prefer_stealth=True)
 
