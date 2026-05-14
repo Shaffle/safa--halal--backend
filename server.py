@@ -432,8 +432,13 @@ def scrape_menu(name, address, lat, lng):
 
 def scrape_yelp_menu(name, address, lat, lng):
     try:
-        query = f"{name}".replace(" ", "+")
-        url = f"https://www.yelp.com/search?find_desc={query}&latitude={lat}&longitude={lng}"
+        from urllib.parse import quote_plus
+
+        query = quote_plus(name)
+        if lat and lng:
+            url = f"https://www.yelp.com/search?find_desc={query}&latitude={lat}&longitude={lng}"
+        else:
+            url = f"https://www.yelp.com/search?find_desc={query}&find_loc={quote_plus(address or '')}"
         page = smart_get(url, prefer_stealth=True)
 
         biz_alias = None
@@ -453,8 +458,9 @@ def scrape_yelp_menu(name, address, lat, lng):
                     data = json.loads(text)
                     aliases = find_values(data, ["alias", "businessUrl", "bizId"])
                     for a in aliases:
-                        if isinstance(a, str) and len(a) > 2 and "/" not in a:
-                            biz_alias = a
+                        alias = normalize_yelp_alias(a)
+                        if alias:
+                            biz_alias = alias
                             break
                     if biz_alias:
                         break
@@ -657,22 +663,39 @@ def extract_menu_from_json(page):
 
 
 def find_menu_items(data, depth=0):
+    return find_menu_items_in_context(data, depth=depth)
+
+
+def find_menu_items_in_context(data, depth=0, in_menu_context=False):
     if depth > 10:
         return []
     items = []
     if isinstance(data, dict):
-        has_name = "name" in data or "title" in data or "itemName" in data
+        menu_context = in_menu_context or any(
+            token in str(key).lower()
+            for key in data.keys()
+            for token in ("menu", "dish", "food", "popular", "item")
+        )
+        has_name = any(key in data for key in ("name", "title", "itemName", "dishName", "displayName", "label"))
         has_price = "price" in data or "cost" in data or "amount" in data
         has_desc = "description" in data or "desc" in data
 
-        if has_name and (has_price or has_desc):
-            name = str(data.get("name") or data.get("title") or data.get("itemName", ""))
+        if has_name and (has_price or has_desc or menu_context):
+            name = str(
+                data.get("name")
+                or data.get("title")
+                or data.get("itemName")
+                or data.get("dishName")
+                or data.get("displayName")
+                or data.get("label")
+                or ""
+            )
             price = data.get("price") or data.get("cost") or data.get("amount", "")
             if isinstance(price, dict):
                 price = price.get("amount") or price.get("formatted") or price.get("display", "")
             desc = str(data.get("description") or data.get("desc", ""))
 
-            if name and len(name) > 1 and len(name) < 80:
+            if is_likely_menu_item_name(name):
                 items.append({"name": name, "price": str(price), "description": desc[:200]})
 
         if "hasMenuSection" in data:
@@ -694,12 +717,13 @@ def find_menu_items(data, depth=0):
                             "description": str(menu_item.get("description", ""))[:200]
                         })
 
-        for v in data.values():
-            items.extend(find_menu_items(v, depth + 1))
+        for key, value in data.items():
+            key_context = menu_context or any(token in str(key).lower() for token in ("menu", "dish", "food", "popular", "item"))
+            items.extend(find_menu_items_in_context(value, depth + 1, key_context))
     elif isinstance(data, list):
         for item in data:
-            items.extend(find_menu_items(item, depth + 1))
-    return items
+            items.extend(find_menu_items_in_context(item, depth + 1, in_menu_context))
+    return dedupe_menu_items(items)
 
 
 def find_values(data, keys, depth=0):
@@ -715,6 +739,59 @@ def find_values(data, keys, depth=0):
         for item in data:
             results.extend(find_values(item, keys, depth + 1))
     return results
+
+
+def normalize_yelp_alias(value):
+    if not isinstance(value, str) or len(value) < 3:
+        return None
+
+    candidate = value
+    if "/biz/" in candidate:
+        candidate = candidate.split("/biz/", 1)[1]
+    candidate = candidate.split("?", 1)[0].split("#", 1)[0].strip("/")
+
+    if not candidate or "/" in candidate or candidate.startswith("http"):
+        return None
+    return candidate
+
+
+def is_likely_menu_item_name(name):
+    if not name:
+        return False
+
+    clean = " ".join(str(name).split())
+    if len(clean) < 2 or len(clean) > 80:
+        return False
+
+    lower = clean.lower()
+    blocked = [
+        "yelp", "reviews", "review", "restaurants", "restaurant", "directions",
+        "phone", "website", "menu", "home", "photos", "see all", "write a review",
+        "start order", "claim this business", "hours", "location", "sign up", "log in"
+    ]
+    if any(blocked_text == lower or blocked_text in lower for blocked_text in blocked):
+        return False
+
+    if lower.startswith(("http", "www.")) or "@" in lower:
+        return False
+
+    return bool(re.search(r"[A-Za-z]", clean))
+
+
+def dedupe_menu_items(items):
+    seen = set()
+    unique = []
+    for item in items:
+        name = " ".join(str(item.get("name", "")).split())
+        if not is_likely_menu_item_name(name):
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        item["name"] = name
+        unique.append(item)
+    return unique
 
 
 def parse_menu_from_text(page):
@@ -756,12 +833,7 @@ def extract_popular_from_biz(page):
         except Exception:
             pass
 
-    seen = set()
-    unique = []
-    for item in items:
-        if item["name"] not in seen:
-            seen.add(item["name"])
-            unique.append(item)
+    unique = dedupe_menu_items(items)
 
     if unique:
         return [{"category": "Popular Items", "items": unique[:20]}]
