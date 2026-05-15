@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: halalbites-backend
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --graceful-timeout 30 --access-logfile - --error-logfile -
+    envVars:
+      - key: SAFABITES_API_KEY
+        sync: false
+      - key: FETCH_TIMEOUT_SECONDS
+        value: "6"
+      - key: DOORDASH_SEARCH_LIMIT
+        value: "5"
+      - key: MAX_RESTAURANT_RESULTS
+        value: "80"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "60"
+      - key: CACHE_TTL_SECONDS
+        value: "600"
